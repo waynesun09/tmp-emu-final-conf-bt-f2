@@ -18,7 +18,7 @@ jobs:
         with:
           persist-credentials: false
       - id: emu
-        uses: waynesun09/github-emulator/.github/actions/emulator@796b88ca24a8ac69d04b4aa92df86c962ceb4604
+        uses: waynesun09/github-emulator/.github/actions/emulator@c90fff510d75eab779acfe4b2c46fc362bdd0930
         with:
           runner-kind: upstream
           port: "443"
