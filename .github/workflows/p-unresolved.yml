@@ -1,0 +1,8 @@
+# Row 2: a reusable-workflow call that cannot be resolved.
+name: p-unresolved
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  missing:
+    uses: waynesun09/conf-repo-that-does-not-exist/.github/workflows/x.yml@main

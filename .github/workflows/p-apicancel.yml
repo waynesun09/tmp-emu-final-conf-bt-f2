@@ -1,0 +1,11 @@
+# Row 4g: POST /actions/runs/{id}/cancel stops a running job.
+name: p-apicancel
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MARK-apicancel-started"; sleep 120
+      - run: echo "MARK-apicancel-should-not-run"

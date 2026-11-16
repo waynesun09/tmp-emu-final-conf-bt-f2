@@ -1,0 +1,20 @@
+# Rows 4g / 4j: a run superseded under concurrency cancel-in-progress stops, and its later steps never run.
+# Row 5c: while job slow runs, the dependent job is listed (queued on GitHub's side, not "waiting").
+name: p-cancel
+on: workflow_dispatch
+permissions:
+  contents: read
+concurrency:
+  group: p-cancel
+  cancel-in-progress: true
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MARK-slow-started"; sleep 90
+      - run: echo "MARK-slow-should-not-run-if-cancelled"
+  dependent:
+    needs: slow
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MARK-dependent"

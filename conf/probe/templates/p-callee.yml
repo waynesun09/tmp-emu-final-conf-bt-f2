@@ -1,0 +1,22 @@
+name: p-callee
+on:
+  workflow_call:
+    inputs:
+      word:
+        type: string
+        required: true
+    outputs:
+      y:
+        value: ${{ jobs.inner.outputs.z }}
+permissions:
+  contents: read
+jobs:
+  inner:
+    runs-on: ubuntu-latest
+    outputs:
+      z: ${{ steps.s.outputs.z }}
+    steps:
+      - id: s
+        run: |
+          echo "MARK-callee-${{ inputs.word }}"
+          echo "z=callee-${{ inputs.word }}" >> "$GITHUB_OUTPUT"

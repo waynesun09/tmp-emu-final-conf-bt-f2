@@ -1,0 +1,11 @@
+# Row 1: a container job. GitHub runs its steps in the container; the emulator refuses loudly.
+name: p-container
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  in-container:
+    runs-on: ubuntu-latest
+    container: docker.io/library/alpine:3.20
+    steps:
+      - run: echo "MARK-container-$(cat /etc/alpine-release 2>/dev/null || echo host)"

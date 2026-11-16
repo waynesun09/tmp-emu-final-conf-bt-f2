@@ -1,0 +1,61 @@
+name: emu-side
+# Runs the conformance probes on the emulator (pinned commit) inside this job, with the upstream
+# runner over https on ghemu.localhost, and keeps the captured responses as an artifact.
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: emu
+        uses: waynesun09/github-emulator/.github/actions/emulator@0d2233d82f1f7a532177610f7e620381a48c5065
+        with:
+          runner-kind: upstream
+          port: "443"
+          tls: "true"
+          system-trust: "true"
+          host: ghemu.localhost
+          upstream-token: ${{ github.token }}
+          runners: "3"
+      - name: Seed the probe repository
+        env:
+          API: ${{ steps.emu.outputs.api-url }}
+          T: ${{ steps.emu.outputs.token }}
+        run: |
+          curl -sS -f -X POST -H "Authorization: token $T" -H 'Content-Type: application/json' "$API/admin/organizations" -d '{"login":"conf-org","admin":"admin"}' -o /dev/null
+          curl -sS -f -X POST -H "Authorization: token $T" -H 'Content-Type: application/json' "$API/orgs/conf-org/repos" -d '{"name":"probe","auto_init":true,"private":false}' | jq -c '{full_name, default_branch, private}'
+      - name: Capture
+        env:
+          API: ${{ steps.emu.outputs.api-url }}
+          TOKEN: ${{ steps.emu.outputs.token }}
+          EMU: ${{ steps.emu.outputs.url }}
+          OWNER: conf-org
+          REPO: probe
+          SIDE: emulator
+          OUT: ${{ runner.temp }}/conf-out
+          PUSH: "1"
+          TEMPLATES: conf/probe/templates
+          SSL_CERT_FILE: ${{ steps.emu.outputs.ca-bundle }}
+          GIT_SSL_CAINFO: ${{ steps.emu.outputs.ca-bundle }}
+        run: |
+          export GIT_URL="${EMU%%://*}://admin:${TOKEN}@${EMU#*://}/conf-org/probe.git"
+          python3 -m venv /tmp/cv && /tmp/cv/bin/pip install -q pynacl==1.5.0
+          /tmp/cv/bin/python -I conf/probe/capture.py
+          mkdir -p "$OUT/oidc"
+          curl -sS "$EMU/.well-known/openid-configuration" -o "$OUT/oidc/openid-configuration.json"
+          curl -sS "$EMU/.well-known/jwks" -o "$OUT/oidc/jwks.json"
+          curl -sS "$EMU/_services/token/.well-known/jwks" -o "$OUT/oidc/jwks-services.json" -w '%{http_code}\n' || true
+      - name: Keep the capture and the stack logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: emu-side-capture
+          path: |
+            ${{ runner.temp }}/conf-out
+            ${{ steps.emu.outputs.state-dir }}/*.log
+          retention-days: 7

@@ -1,0 +1,77 @@
+# Rows 4 (job outputs), 4b (gh in a step), 5d (github context), 14e (annotations), 18 (OIDC claims),
+# 5a (a read-only job token cannot write Actions variables), 16b (JSON body without Content-Type,
+# DELETE /installation/token), installation repositories with the job token.
+name: p-context
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    outputs:
+      x: ${{ steps.s.outputs.x }}
+    steps:
+      - id: s
+        run: echo "x=out-value-42" >> "$GITHUB_OUTPUT"
+      - name: context
+        env:
+          CTX: ${{ toJSON(github) }}
+        run: |
+          echo "BEGIN-CTX"
+          echo "$CTX" | jq -c '{actor, actor_id, triggering_actor, api_url, graphql_url, server_url, repository, repository_id, repository_owner, repository_owner_id, run_attempt, run_id, run_number, workflow, workflow_ref, workflow_sha, event_name, ref, ref_name, ref_type, sha, job, retention_days, token: (if .token then "set" else null end), keys: (keys)}'
+          echo "END-CTX"
+          echo "BEGIN-ENV"
+          jq -nc 'env | with_entries(select(.key|test("^(GITHUB_|RUNNER_|CI$|ACTIONS_ID_TOKEN_REQUEST_URL$)"))) | with_entries(.value = (if (.key|test("TOKEN")) then "set" else .value end))'
+          echo "END-ENV"
+      - name: annotations
+        run: |
+          echo "::notice title=probe::MARK-notice-text"
+          echo "::warning::MARK-warning-text"
+      - name: gh in a step
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "MARK-gh-$(gh api "repos/$GITHUB_REPOSITORY" --jq .full_name)"
+  b:
+    needs: a
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MARK-needs-${{ needs.a.outputs.x }}"
+  oidc:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: claims
+        run: |
+          tok=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=conf-probe" | jq -r .value)
+          payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+'); while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          header=$(echo "$tok" | cut -d. -f1 | tr '_-' '/+'); while [ $(( ${#header} % 4 )) -ne 0 ]; do header="$header="; done
+          echo "BEGIN-OIDC"
+          jq -nc --argjson h "$(echo "$header" | base64 -d)" --argjson p "$(echo "$payload" | base64 -d)" \
+            '{header: ($h | {alg, typ, kid: (if .kid then "set" else null end), x5t: (if .x5t then "set" else null end)}), claims: ($p | with_entries(.value |= (if type=="string" and (.|length) > 120 then "long" else . end)))}'
+          echo "END-OIDC"
+  token:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: token routes
+        env:
+          T: ${{ github.token }}
+        run: |
+          api="$GITHUB_API_URL"
+          echo "BEGIN-TOKEN"
+          s1=$(curl -sS -o /tmp/ir.json -w '%{http_code}' -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" "$api/installation/repositories")
+          jq -c --arg s "$s1" '{op:"GET /installation/repositories", status:($s|tonumber), total_count, repository_selection, n:(.repositories|length), repo_keys:(.repositories[0]|keys)}' /tmp/ir.json
+          s2=$(curl -sS -o /tmp/var.json -w '%{http_code}' -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" -H 'Content-Type: application/json' "$api/repos/$GITHUB_REPOSITORY/actions/variables" -d '{"name":"CONF_RO_PROBE","value":"x"}')
+          jq -c --arg s "$s2" '{op:"POST actions/variables (job token, contents read)", status:($s|tonumber), message}' /tmp/var.json
+          s3=$(curl -sS -o /tmp/lab.json -w '%{http_code}' -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" -H 'Content-Type:' "$api/repos/$GITHUB_REPOSITORY/labels" -d '{"name":"conf-nobody-ct","color":"ededed"}')
+          jq -c --arg s "$s3" '{op:"POST labels without Content-Type", status:($s|tonumber), name, message}' /tmp/lab.json
+          s4=$(curl -sS -o /tmp/rev.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" "$api/installation/token")
+          echo "{\"op\":\"DELETE /installation/token\",\"status\":$s4,\"body_bytes\":$(wc -c < /tmp/rev.json)}"
+          s5=$(curl -sS -o /tmp/after.json -w '%{http_code}' -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" "$api/repos/$GITHUB_REPOSITORY")
+          jq -c --arg s "$s5" '{op:"GET repo after revoke", status:($s|tonumber), message}' /tmp/after.json
+          echo "END-TOKEN"

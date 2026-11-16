@@ -1,0 +1,10 @@
+name: conf-hosted
+description: An action hosted in the probe repository (row 4f).
+inputs:
+  word:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "MARK-hosted-${{ inputs.word }}"

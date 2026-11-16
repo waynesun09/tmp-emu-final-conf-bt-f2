@@ -1,0 +1,27 @@
+# Rows 4e (needs on a reusable caller and its outputs), 6 (a caller skipped by its if:),
+# 4f (an action hosted in a repository on the same server).
+name: p-reusable
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  caller:
+    uses: ./.github/workflows/p-callee.yml
+    with:
+      word: alpha
+  after:
+    needs: caller
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MARK-caller-out-${{ needs.caller.outputs.y }}"
+  skipped-caller:
+    if: ${{ false }}
+    uses: ./.github/workflows/p-callee.yml
+    with:
+      word: never
+  hosted-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: __OWNER__/__REPO__/conf/action@main
+        with:
+          word: beta
