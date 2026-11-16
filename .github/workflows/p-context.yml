@@ -65,7 +65,7 @@ jobs:
           api="$GITHUB_API_URL"
           echo "BEGIN-TOKEN"
           s1=$(curl -sS -o /tmp/ir.json -w '%{http_code}' -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" "$api/installation/repositories")
-          jq -c --arg s "$s1" '{op:"GET /installation/repositories", status:($s|tonumber), total_count, repository_selection, n:(.repositories|length), repo_keys:(.repositories[0]|keys)}' /tmp/ir.json
+          jq -c --arg s "$s1" '{op:"GET /installation/repositories", status:($s|tonumber), total_count, repository_selection, n:((.repositories // [])|length), message, repo_keys:((.repositories // [])[0] // {} | keys)}' /tmp/ir.json || echo '{"op":"GET /installation/repositories","parse":"failed"}'
           s2=$(curl -sS -o /tmp/var.json -w '%{http_code}' -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" -H 'Content-Type: application/json' "$api/repos/$GITHUB_REPOSITORY/actions/variables" -d '{"name":"CONF_RO_PROBE","value":"x"}')
           jq -c --arg s "$s2" '{op:"POST actions/variables (job token, contents read)", status:($s|tonumber), message}' /tmp/var.json
           s3=$(curl -sS -o /tmp/lab.json -w '%{http_code}' -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" -H 'Content-Type:' "$api/repos/$GITHUB_REPOSITORY/labels" -d '{"name":"conf-nobody-ct","color":"ededed"}')

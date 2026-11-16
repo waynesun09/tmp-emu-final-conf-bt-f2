@@ -1,7 +1,12 @@
 name: emu-side
 # Runs the conformance probes on the emulator (pinned commit) inside this job, with the upstream
 # runner over https on ghemu.localhost, and keeps the captured responses as an artifact.
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Comma-separated probe names to run alone (empty runs all)
+        default: ""
 permissions:
   contents: read
 jobs:
@@ -37,6 +42,7 @@ jobs:
           OWNER: conf-org
           REPO: probe
           SIDE: emulator
+          ONLY: ${{ inputs.only }}
           OUT: ${{ runner.temp }}/conf-out
           PUSH: "1"
           TEMPLATES: conf/probe/templates

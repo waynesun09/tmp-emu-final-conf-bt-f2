@@ -33,6 +33,7 @@ R = f"/repos/{OWNER}/{REPO}"
 CAP = open(OUT / "capture.jsonl", "a")
 NOTES = []
 PROBES = ["p-context", "p-artifacts", "p-reusable", "p-unresolved", "p-container", "p-cancel", "p-apicancel"]
+ONLY = [p for p in os.environ.get("ONLY", "").split(",") if p]
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -186,6 +187,31 @@ def main():
     wfs = workflows()
     since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 5))
     beh = {"side": os.environ.get("SIDE"), "api": API, "dispatch": {}}
+    if ONLY:
+        for p in ONLY:
+            beh["dispatch"][p] = dispatch(p)
+        end = time.time() + 900
+        allruns = {}
+        while time.time() < end:
+            allruns = {p: runs_of(wfs[p]["id"], since) for p in ONLY}
+            if all(rs and all(r["status"] == "completed" for r in rs) for rs in allruns.values()):
+                break
+            time.sleep(10)
+        beh["runs"] = {}
+        for p, rs in allruns.items():
+            beh["runs"][p] = []
+            for r in rs:
+                entry = {"id": r["id"], "conclusion": r.get("conclusion"), "jobs": []}
+                for j in jobs(r["id"]):
+                    info, text = log_text(j["id"])
+                    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", f"{p}-{r['id']}-{j['name']}")
+                    (OUT / "logs" / f"{safe}.txt").write_text(text)
+                    marks, blocks, ann = parse_log(text)
+                    entry["jobs"].append({"name": j["name"], "conclusion": j["conclusion"], "marks": marks, "blocks": blocks})
+                beh["runs"][p].append(entry)
+        (OUT / "behaviour.json").write_text(json.dumps(beh, indent=1))
+        print("captured ONLY", ONLY)
+        return
     for p in ["p-context", "p-artifacts", "p-reusable", "p-unresolved", "p-container"]:
         beh["dispatch"][p] = dispatch(p)
     # 5c + 4g: first p-cancel run; list jobs while slow runs; then supersede.
