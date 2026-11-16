@@ -1,0 +1,61 @@
+# Row 5d, one value per line (the emulator's job log keeps only ~1000 characters of a line).
+name: p-ctx2
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  ctx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: expressions
+        run: |
+          echo "CTX job=${{ github.job }}"
+          echo "CTX ref_name=${{ github.ref_name }}"
+          echo "CTX ref_type=${{ github.ref_type }}"
+          echo "CTX ref_protected=${{ github.ref_protected }}"
+          echo "CTX workflow_sha=${{ github.workflow_sha }}"
+          echo "CTX repository_visibility=${{ github.repository_visibility }}"
+          echo "CTX retention_days=${{ github.retention_days }}"
+          echo "CTX repositoryUrl=${{ github.repositoryUrl }}"
+          echo "CTX event_path_set=${{ github.event_path != '' }}"
+          echo "CTX workspace_set=${{ github.workspace != '' }}"
+          echo "CTX token_set=${{ github.token != '' }}"
+          echo "CTX action=${{ github.action }}"
+          echo "CTX run_id_is_string=${{ format('{0}', github.run_id) == github.run_id }}"
+          echo "CTX event_inputs=${{ toJSON(github.event.inputs) }}"
+          echo "CTX event_ref=${{ github.event.ref }}"
+          echo "CTX event_repository_full_name=${{ github.event.repository.full_name }}"
+          echo "CTX event_sender_login=${{ github.event.sender.login }}"
+          echo "CTX runner_os=${{ runner.os }}"
+          echo "CTX runner_arch=${{ runner.arch }}"
+          echo "CTX runner_environment=${{ runner.environment }}"
+          echo "CTX job_status=${{ job.status }}"
+          echo "CTX job_check_run_id_set=${{ job.check_run_id != '' }}"
+          echo "CTX strategy_job_index=${{ strategy.job-index }}"
+      - name: environment
+        run: |
+          for v in CI GITHUB_ACTIONS GITHUB_ACTION GITHUB_ACTOR GITHUB_ACTOR_ID GITHUB_API_URL GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_EVENT_PATH \
+                   GITHUB_GRAPHQL_URL GITHUB_HEAD_REF GITHUB_JOB GITHUB_REF GITHUB_REF_NAME GITHUB_REF_PROTECTED GITHUB_REF_TYPE GITHUB_REPOSITORY \
+                   GITHUB_REPOSITORY_ID GITHUB_REPOSITORY_OWNER GITHUB_REPOSITORY_OWNER_ID GITHUB_RETENTION_DAYS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID \
+                   GITHUB_RUN_NUMBER GITHUB_SERVER_URL GITHUB_SHA GITHUB_TRIGGERING_ACTOR GITHUB_WORKFLOW GITHUB_WORKFLOW_REF GITHUB_WORKFLOW_SHA \
+                   GITHUB_WORKSPACE GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH GITHUB_STATE GITHUB_STEP_SUMMARY RUNNER_ARCH RUNNER_ENVIRONMENT RUNNER_OS \
+                   RUNNER_TEMP RUNNER_TOOL_CACHE RUNNER_NAME; do
+            if [ -n "${!v+x}" ]; then
+              case "$v" in *PATH|*_ENV|*OUTPUT|*STATE|*SUMMARY|*WORKSPACE|RUNNER_TEMP|RUNNER_TOOL_CACHE|RUNNER_NAME) echo "ENV $v=<set>";;
+                *) echo "ENV $v=${!v}";; esac
+            else
+              echo "ENV $v=<unset>"
+            fi
+          done
+          echo "LONG $(printf 'x%.0s' $(seq 1 3000))END"
+      - name: step summary and annotations
+        run: |
+          echo "### probe summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=probe::MARK-notice-2"
+          echo "::warning file=conf/action/action.yml,line=1::MARK-warning-2"
+          echo "::error title=probe-err::MARK-error-2"
+          echo "::group::MARK-group"
+          echo "inside"
+          echo "::endgroup::"
+          echo "::add-mask::MARK-secret-value"
+          echo "masked=MARK-secret-value"
